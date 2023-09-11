@@ -1,7 +1,6 @@
 package com.example.hellostore.facade;
 
 import com.example.hellostore.service.StockService;
-
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,16 +12,15 @@ public class OptimisticLockStockFacade {
         this.stockService = stockService;
     }
 
-    public void decrease(
-        final Long stockId,
-        final Long purchaseQuantity
-    ) throws InterruptedException {
+    public void decrease(final Long stockId, final Long purchaseQuantity) throws InterruptedException {
         while (true) {
             try {
                 stockService.decreaseStockWithOptimisticLock(stockId, purchaseQuantity);
                 break;
-            } catch (Exception e) {
-                Thread.sleep(100);
+            } catch (final IllegalStateException e) {
+                throw e;
+            } catch (final Exception e) {
+                Thread.sleep(500);
             }
         }
     }
