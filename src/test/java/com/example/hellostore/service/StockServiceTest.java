@@ -6,19 +6,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.example.hellostore.domain.Stock;
 import com.example.hellostore.repository.StockRepository;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.jpa.JpaSystemException;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StockServiceTest {
@@ -64,9 +61,12 @@ class StockServiceTest {
     @Test
     void 한번_요청시_재고_감소를_0이하로_하는_경우_Consume() {
         final Exception exception = catchException(
-            () -> stockService.decreaseStockWithConsumeQuantity(1L, 1000L));
+                () -> stockService.decreaseStockWithConsumeQuantity(1L, 1000L));
 
-        assertThat(exception).isInstanceOf(DataIntegrityViolationException.class);
+        // org.hibernate.SQL                      : update stock set quantity=(quantity-?) where stock_id=?
+        // o.h.engine.jdbc.spi.SqlExceptionHelper : SQL Error: 3819, SQLState: HY000
+        // o.h.engine.jdbc.spi.SqlExceptionHelper : Check constraint 'stock_chk_1' is violated.
+        assertThat(exception).isInstanceOf(JpaSystemException.class); // JpaSystemException
     }
 
     @Test
@@ -74,10 +74,16 @@ class StockServiceTest {
         final ExecutorService executorService = Executors.newFixedThreadPool(64);
         final CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
 
+        final AtomicInteger successCount = new AtomicInteger(0);
+        final AtomicInteger failCount = new AtomicInteger(0);
+
         for (int i = 0; i < THREAD_COUNT; i++) {
             executorService.submit(() -> {
                 try {
                     stockService.decreaseStockWithSynchronized(1L, 1L);
+                    successCount.getAndIncrement();
+                } catch (Exception e) {
+                    failCount.getAndIncrement();
                 } finally {
                     latch.countDown();
                 }
@@ -88,6 +94,8 @@ class StockServiceTest {
 
         final Stock stock = stockRepository.findById(1L).orElseThrow();
         assertThat(stock.getQuantity()).isZero();
+        assertThat(successCount.get()).isEqualTo(500);
+        assertThat(failCount.get()).isEqualTo(500);
     }
 
     @Test
@@ -95,42 +103,16 @@ class StockServiceTest {
         final ExecutorService executorService = Executors.newFixedThreadPool(64);
         final CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
 
-        List<Integer> success = new ArrayList<>();
-        List<Integer> fail = new ArrayList<>();
+        final AtomicInteger successCount = new AtomicInteger(0);
+        final AtomicInteger failCount = new AtomicInteger(0);
+
         for (int i = 0; i < THREAD_COUNT; i++) {
             executorService.submit(() -> {
                 try {
                     stockService.decreaseStockWithConsumeQuantity(1L, 1L);
-                    success.add(1);
-                } catch(Throwable e) {
-                    fail.add(1);
-                }finally {
-                    latch.countDown();
-                }
-            });
-        }
-        latch.await();
-
-        System.out.println("success.size() " + success.size());
-        System.out.println("fail.size() " + fail.size());
-        final Stock stock = stockRepository.findById(1L).orElseThrow();
-        assertThat(stock.getQuantity()).isZero();
-    }
-
-    @Test
-    void 동시에_1000개의_요청_PessimisticLock() throws InterruptedException {
-        final ExecutorService executorService = Executors.newFixedThreadPool(64);
-        final CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
-
-        List<Integer> success = new ArrayList<>();
-        List<Integer> fail = new ArrayList<>();
-        for (int i = 0; i < THREAD_COUNT; i++) {
-            executorService.submit(() -> {
-                try {
-                    stockService.decreaseStockWithPessimisticLock(1L, 1L);
-                    success.add(1);
-                } catch(Throwable e) {
-                    fail.add(1);
+                    successCount.getAndIncrement();
+                } catch (Exception e) {
+                    failCount.getAndIncrement();
                 } finally {
                     latch.countDown();
                 }
@@ -138,9 +120,37 @@ class StockServiceTest {
         }
         latch.await();
 
-        System.out.println("success.size() " + success.size());
-        System.out.println("fail.size() " + fail.size());
         final Stock stock = stockRepository.findById(1L).orElseThrow();
         assertThat(stock.getQuantity()).isZero();
+        assertThat(successCount.get()).isEqualTo(500);
+        assertThat(failCount.get()).isEqualTo(500);
+    }
+
+    @Test
+    void 동시에_1000개의_요청_PessimisticLock() throws InterruptedException {
+        final ExecutorService executorService = Executors.newFixedThreadPool(64);
+        final CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
+
+        final AtomicInteger successCount = new AtomicInteger(0);
+        final AtomicInteger failCount = new AtomicInteger(0);
+
+        for (int i = 0; i < THREAD_COUNT; i++) {
+            executorService.submit(() -> {
+                try {
+                    stockService.decreaseStockWithPessimisticLock(1L, 1L);
+                    successCount.getAndIncrement();
+                } catch (Exception e) {
+                    failCount.getAndIncrement();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+        latch.await();
+
+        final Stock stock = stockRepository.findById(1L).orElseThrow();
+        assertThat(stock.getQuantity()).isZero();
+        assertThat(successCount.get()).isEqualTo(500);
+        assertThat(failCount.get()).isEqualTo(500);
     }
 }
