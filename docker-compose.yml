@@ -13,3 +13,13 @@ services:
       MYSQL_USER: user
       MYSQL_PASSWORD: password
     command: [ "mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_general_ci" ]
+  redis:
+    image: redis
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    labels:
+      - name=redis
+      - mode=standalone
+    command: redis-server --port 6379
