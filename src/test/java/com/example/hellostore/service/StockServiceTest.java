@@ -63,10 +63,13 @@ class StockServiceTest {
         final Exception exception = catchException(
                 () -> stockService.decreaseStockWithConsumeQuantity(1L, 1000L));
 
+        final Stock stock = stockRepository.findById(1L).orElseThrow();
+
         // org.hibernate.SQL                      : update stock set quantity=(quantity-?) where stock_id=?
         // o.h.engine.jdbc.spi.SqlExceptionHelper : SQL Error: 3819, SQLState: HY000
         // o.h.engine.jdbc.spi.SqlExceptionHelper : Check constraint 'stock_chk_1' is violated.
         assertThat(exception).isInstanceOf(JpaSystemException.class); // JpaSystemException
+        assertEquals(500, stock.getQuantity());
     }
 
     @Test
