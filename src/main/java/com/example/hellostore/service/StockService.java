@@ -15,20 +15,30 @@ public class StockService {
         this.stockRepository = stockRepository;
     }
 
+    @Transactional(readOnly = true)
+    public Long findStockWithPessimisticLock(final Long stockId) {
+        final Stock stock = stockRepository.findById(stockId).orElseThrow(
+                () -> new RuntimeException("123")
+        );
+        stock.decrease(1L);
+        stockRepository.saveAndFlush(stock);
+        return stock.getQuantity();
+    }
+
     @Transactional
     public void decrease(final Long stockId, final Long purchaseQuantity) {
         final Stock stock = stockRepository.findById(stockId)
-            .orElseThrow(IllegalArgumentException::new);
+                .orElseThrow(IllegalArgumentException::new);
 
         stock.decrease(purchaseQuantity);
     }
 
     public synchronized void decreaseStockWithSynchronized(
-        final Long stockId,
-        final Long purchaseQuantity
+            final Long stockId,
+            final Long purchaseQuantity
     ) {
         final Stock stock = stockRepository.findById(stockId)
-            .orElseThrow(IllegalArgumentException::new);
+                .orElseThrow(IllegalArgumentException::new);
 
         stock.decrease(purchaseQuantity);
 

@@ -18,3 +18,5 @@ create table if not exists stock
     quantity   bigint not null check (quantity >= 0),
     primary key (stock_id)
 );
+
+insert into stock (stock_id, product_id, version, quantity) values (1, 1, 1, 20);

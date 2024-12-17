@@ -2,6 +2,7 @@ package com.example.hellostore.controller;
 
 import com.example.hellostore.service.StockService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +25,13 @@ public class StockController {
         stockService.decreaseStockWithSynchronized(stockId, quantity);
 
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/stock/{stockId}")
+    public ResponseEntity<Long> decreaseStocks(@PathVariable final Long stockId) {
+        final Long quantity = stockService.findStockWithPessimisticLock(stockId);
+
+        return ResponseEntity.ok(quantity);
     }
 }
 
